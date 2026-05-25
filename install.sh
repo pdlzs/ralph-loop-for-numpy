@@ -157,28 +157,30 @@ install_claude() {
 
 # ---------- 部署项目文件到当前目录 ----------
 deploy_project() {
-    local repo_url="https://github.com/pdlzs/ralph-loop-for-numpy.git"
+    local base_url="https://raw.githubusercontent.com/pdlzs/ralph-loop-for-numpy/main"
     local dest_dir="${1:-.}"
 
     # 解析为绝对路径
     dest_dir="$(cd "$dest_dir" 2>/dev/null && pwd || echo "$dest_dir")"
 
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
-    trap "rm -rf '$tmp_dir'" EXIT
-
     log_step "下载项目文件到 $dest_dir ..."
-    git clone --depth 1 "$repo_url" "$tmp_dir"
 
-    # 复制项目文件到目标目录（排除 .git 和 install.sh 自身）
-    for item in ralph-loop.sh ralph-prompts .claude; do
-        if [ -e "$tmp_dir/$item" ]; then
-            cp -r "$tmp_dir/$item" "$dest_dir/"
-        fi
+    # 下载主脚本
+    mkdir -p "$dest_dir"
+    curl -fsSL "$base_url/ralph-loop.sh" -o "$dest_dir/ralph-loop.sh"
+    chmod +x "$dest_dir/ralph-loop.sh"
+
+    # 下载提示词目录
+    mkdir -p "$dest_dir/ralph-prompts"
+    for f in system.md phase-bootstrap.md phase-execute.md phase-review.md; do
+        curl -fsSL "$base_url/ralph-prompts/$f" -o "$dest_dir/ralph-prompts/$f"
     done
 
-    chmod +x "$dest_dir/ralph-loop.sh"
-    log_info "ralph-loop.sh 已部署到 $dest_dir/"
+    # 下载 .claude 配置
+    mkdir -p "$dest_dir/.claude"
+    curl -fsSL "$base_url/.claude/settings.json" -o "$dest_dir/.claude/settings.json"
+
+    log_info "项目文件已部署到 $dest_dir/"
 }
 
 # ---------- 验证 ----------
@@ -239,14 +241,6 @@ main() {
     # 检查基础前提
     if ! has curl && ! has wget; then
         log_error "需要 curl 或 wget，请先安装"
-        exit 1
-    fi
-    if ! has git; then
-        log_error "需要 git，请先安装"
-        case "$OS" in
-            linux) log_error "  sudo apt install git" ;;
-            macos) log_error "  brew install git"     ;;
-        esac
         exit 1
     fi
 
