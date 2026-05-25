@@ -85,23 +85,33 @@ check_python3() {
 
 # ---------- 安装 nvm + Node.js ----------
 install_node() {
+    local min_ver=18
+
+    # 检查当前 node 版本是否达标
     if has node && has npm; then
-        local node_ver
-        node_ver=$(node --version)
-        log_info "Node.js 已安装: $node_ver"
-        return
+        local node_major
+        node_major=$(node --version | sed 's/v//' | cut -d. -f1)
+        if [ "$node_major" -ge "$min_ver" ]; then
+            log_info "Node.js 已安装: $(node --version)"
+            return
+        fi
+        log_warn "当前 Node.js $(node --version) 版本过低（需要 >= $min_ver），将使用 nvm 安装新版本"
     fi
 
     local nvm_dir="${NVM_DIR:-$HOME/.nvm}"
     local nvm_script="$nvm_dir/nvm.sh"
 
-    # 加载 nvm（如果已安装但未在当前 shell 加载）
+    # 加载 nvm
     if [ -s "$nvm_script" ]; then
-        log_info "nvm 已安装，加载中..."
         . "$nvm_script"
-        if has node && has npm; then
-            log_info "Node.js 已可用: $(node --version)"
-            return
+        # 检查 nvm 管理的 node 版本是否达标
+        if has node; then
+            local nvm_major
+            nvm_major=$(node --version | sed 's/v//' | cut -d. -f1)
+            if [ "$nvm_major" -ge "$min_ver" ]; then
+                log_info "nvm 管理的 Node.js 已达标: $(node --version)"
+                return
+            fi
         fi
     else
         log_step "安装 nvm..."
@@ -117,11 +127,18 @@ install_node() {
     log_info "npm 版本: $(npm --version)"
 }
 
+# ---------- 确保使用 nvm 的 node ----------
+use_nvm_node() {
+    local nvm_script="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+    if [ -s "$nvm_script" ]; then
+        . "$nvm_script"
+        nvm use default &>/dev/null || nvm use --lts &>/dev/null || true
+    fi
+}
+
 # ---------- 安装 Claude Code ----------
 install_claude() {
-    # 加载 nvm（确保 npm 可用）
-    local nvm_script="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
-    [ -s "$nvm_script" ] && . "$nvm_script"
+    use_nvm_node
 
     if has claude; then
         log_info "Claude Code 已安装"
@@ -161,6 +178,7 @@ deploy_project() {
 
 # ---------- 验证 ----------
 verify() {
+    use_nvm_node
     echo ""
     log_info "======== 安装验证 ========"
     has jq      && echo -e "  jq:       ${GREEN}$(jq --version 2>&1)${NC}"        || echo -e "  jq:       ${RED}未安装${NC}"
@@ -230,6 +248,7 @@ main() {
     install_jq
     check_python3
     install_node
+    use_nvm_node
     install_claude
 
     if [ "$deps_only" = false ]; then
