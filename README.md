@@ -4,16 +4,39 @@ Ralph Loop 是一个 Shell 驱动的 AI 代理循环，用于 NumPy C 扩展的�
 
 ## 前置依赖
 
-- **jq** — JSON 处理（`apt install jq`）
+- **jq** — JSON 处理
 - **Python 3** — 模板渲染和 JSON 验证
-- **AI 工具** — 以下之一：
-  - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`npm install -g @anthropic-ai/claude-code`）
-  - [OpenCode](https://github.com/anomalyco/opencode)（`npm install -g opencode-ai@latest`）
+- **Node.js** — AI 工具运行环境
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — AI 代理引擎
+
+### 一键安装
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pdlzs/ralph-loop-for-numpy/main/install.sh | bash
+```
+
+这会自动完成：安装 jq → 检查 python3 → 通过 nvm 安装 Node.js LTS → 安装 Claude Code → 部署项目文件到当前目录。
+
+安装完成后，编辑 `.claude/settings.json` 填入你的 API Key。
+
+### 手动安装
+
+```bash
+# jq
+sudo apt install jq
+
+# Node.js（推荐通过 nvm）
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+nvm install --lts
+
+# Claude Code
+npm install -g @anthropic-ai/claude-code
+```
 
 ## 快速开始
 
 ```bash
-# 1. 赋予执行权限
+# 1. 赋予执行权限（curl 方式已自动完成）
 chmod +x ralph-loop.sh
 
 # 2. 启动新的优化任务

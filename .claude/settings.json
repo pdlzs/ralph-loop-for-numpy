@@ -1,0 +1,20 @@
+{
+  "env": {
+    "DISABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
+    "CLAUDE_CODE_DISABLE_UPDATE_CHECK": "1",
+    "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
+    "ANTHROPIC_BASE_URL": "https://dashscope.aliyuncs.com/apps/anthropic",
+    "ANTHROPIC_MODEL": "glm-5.1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "qwen3.7-max",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "glm-5.1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "glm-5"
+  },
+  "skipWebFetchPreflight": true,
+  "theme": "auto",
+  "verbose": true,
+  "skipDangerousModePermissionPrompt": true
+}

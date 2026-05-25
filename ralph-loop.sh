@@ -39,10 +39,10 @@ log_warn()  { echo "【RALPH】【$(timestamp)】[WARN] $*" >&2; }
 log_error() { echo "【RALPH】【$(timestamp)】[ERROR] $*" >&2; }
 
 detect_ai_tool() {
-    if command -v opencode &> /dev/null; then
-        echo "opencode"
-    elif command -v claude &> /dev/null; then
+    if command -v claude &> /dev/null; then
         echo "claude"
+    elif command -v opencode &> /dev/null; then
+        echo "opencode"
     else
         echo ""
     fi
@@ -64,7 +64,7 @@ run_ai() {
         printf '%s\n' "$prompt" | IS_SANDBOX=1 claude --dangerously-skip-permissions -p --output-format stream-json --include-partial-messages 2>>"$LOG_FILE" | jq --unbuffered -rj 'select(.type == "stream_event" and .event.delta.type? == "text_delta") | .event.delta.text' | tee -a "$LOG_FILE"
         ai_exit=${PIPESTATUS[1]}
     else
-        log_error "未找到 AI 工具 (opencode/claude)"
+        log_error "未找到 AI 工具 (claude/opencode)"
         ai_exit=1
     fi
     set -e
@@ -821,7 +821,7 @@ show_help() {
   -p, --prompt TEXT         优化目标 (启动新任务时使用)
   -n, --task-name NAME      任务名 (继续现有任务或指定新任务名)
   -i, --max-iter N          最大迭代次数 (默认: $MAX_ITERATIONS)
-  -t, --tool TOOL           AI 工具: opencode 或 claude
+  -t, --tool TOOL           AI 工具: claude 或 opencode
   -h, --help                显示帮助
 
 示例:
@@ -833,7 +833,7 @@ show_help() {
   $0 -n opt_searchsort -t claude         # 使用 claude 继续任务
 
 环境变量:
-  RALPH_TOOL                 默认 AI 工具 (opencode/claude)
+  RALPH_TOOL                 默认 AI 工具 (claude/opencode)
   RALPH_MAX_ITERATIONS       最大迭代次数
   RALPH_MAX_TASK_ATTEMPTS    单个任务最大尝试次数 (默认: 3)
   RALPH_PROMPTS_DIR          提示词目录路径
@@ -954,12 +954,12 @@ main() {
     case "${AI_TOOL}" in
         opencode|claude) ;;
         "")
-            log_error "未找到 AI 工具 (opencode/claude)"
+            log_error "未找到 AI 工具 (claude/opencode)"
             log_error "安装: npm install -g @anthropic-ai/claude-code"
             exit 1
             ;;
         *)
-            log_error "不支持的 AI 工具: $AI_TOOL (支持: opencode, claude)"
+            log_error "不支持的 AI 工具: $AI_TOOL (支持: claude, opencode)"
             exit 1
             ;;
     esac
