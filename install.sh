@@ -101,7 +101,8 @@ install_node() {
     local nvm_dir="${NVM_DIR:-$HOME/.nvm}"
     local nvm_script="$nvm_dir/nvm.sh"
 
-    # 加载 nvm
+    # 加载 nvm（nvm.sh 不兼容 set -u，需临时关闭）
+    set +u
     if [ -s "$nvm_script" ]; then
         . "$nvm_script"
         # 检查 nvm 管理的 node 版本是否达标
@@ -110,6 +111,7 @@ install_node() {
             nvm_major=$(node --version | sed 's/v//' | cut -d. -f1)
             if [ "$nvm_major" -ge "$min_ver" ]; then
                 log_info "nvm 管理的 Node.js 已达标: $(node --version)"
+                set -u
                 return
             fi
         fi
@@ -123,6 +125,7 @@ install_node() {
     nvm install --lts
     nvm use --lts
     nvm alias default lts/*
+    set -u
     log_info "Node.js 安装完成: $(node --version)"
     log_info "npm 版本: $(npm --version)"
 }
@@ -131,8 +134,10 @@ install_node() {
 use_nvm_node() {
     local nvm_script="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
     if [ -s "$nvm_script" ]; then
+        set +u
         . "$nvm_script"
         nvm use default &>/dev/null || nvm use --lts &>/dev/null || true
+        set -u
     fi
 }
 
