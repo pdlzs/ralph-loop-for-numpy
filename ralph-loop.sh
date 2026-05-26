@@ -820,6 +820,7 @@ show_help() {
 
 选项:
   -p, --prompt TEXT         优化目标 (启动新任务时使用)
+  -f, --prompt-file FILE    从文件读取优化目标 (与 -p 二选一，-p 优先)
   -n, --task-name NAME      任务名 (继续现有任务或指定新任务名)
   -i, --max-iter N          最大迭代次数 (默认: $MAX_ITERATIONS)
   -t, --tool TOOL           AI 工具: claude 或 opencode
@@ -830,6 +831,7 @@ show_help() {
   $0 status -n opt_searchsort            # 查看任务状态
   $0 clean -n opt_searchsort             # 清理任务
   $0 -i 10 -p "优化 searchsort 算子"     # 启动新优化任务
+  $0 -i 10 -f prompt.txt                 # 从文件读取优化目标
   $0 -n opt_searchsort -i 5              # 继续已有任务
   $0 -n opt_searchsort -t claude         # 使用 claude 继续任务
 
@@ -913,6 +915,19 @@ parse_args() {
                 INITIAL_PROMPT="$2"; shift 2 ;;
             --prompt=*)
                 INITIAL_PROMPT="${1#*=}"; shift ;;
+            --prompt-file|-f)
+                if [ ! -f "$2" ]; then
+                    log_error "Prompt 文件不存在: $2"
+                    exit 1
+                fi
+                PROMPT_FILE="$2"; shift 2 ;;
+            --prompt-file=*)
+                local f="${1#*=}"
+                if [ ! -f "$f" ]; then
+                    log_error "Prompt 文件不存在: $f"
+                    exit 1
+                fi
+                PROMPT_FILE="$f"; shift ;;
             --task-name|--task|-n)
                 TASK_NAME="$2"; shift 2 ;;
             --task-name=*|--task=*)
@@ -939,6 +954,12 @@ parse_args() {
 
 main() {
     parse_args "$@"
+
+    # 如果未通过 -p 指定 prompt，但指定了 -f，则从文件读取
+    if [ -z "${INITIAL_PROMPT:-}" ] && [ -n "${PROMPT_FILE:-}" ]; then
+        INITIAL_PROMPT=$(cat "$PROMPT_FILE")
+        log_info "从文件读取优化目标: $PROMPT_FILE"
+    fi
 
     # 依赖检查
     if ! command -v jq &> /dev/null; then
