@@ -10,9 +10,99 @@
 
 ## 步骤
 
+### 0. 识别用户意图（优先执行）
+
+**在运行任何基准测试之前**，先从 `{{USER_GOAL}}` 中提取用户意图，写入 `{{RUNTIME_DIR}}/analysis.json` 的 `user_intent` 字段。
+
+需要识别三个维度：
+
+#### 0.1 用例范围 (use_case_scope)
+
+用户关注的 benchmark 名称、算子、数据类型、参数范围。如果是模糊描述（"优化 searchsort"），列出所有相关 benchmark 用例。如果用户指定了精确 benchmark 名，原样记录。
+
+```json
+"use_case_scope": {
+  "summary": "一句话概括优化范围",
+  "benchmarks": ["精确的 benchmark 名称列表"],
+  "operators": ["涉及的算子"],
+  "dtypes": ["涉及的数据类型"],
+  "parameters": "参数范围说明"
+}
+```
+
+#### 0.2 结束目标 (end_goal)
+
+这是 **review 阶段的验收标准**。从用户 prompt 中提取可测量的目标：
+
+- 如果用户说"提升 X%"→ `type: "relative_improvement"`, `target_pct: X`
+- 如果用户说"达到 XX ms" → `type: "absolute_time"`, `target_value: XX`, `unit: "ms"`
+- 如果用户说"消除退化" → `type: "eliminate_regression"`, `target_regression_free: true`
+- 如果用户只说"优化"而无具体数值 → `type: "max_improvement"`, 意为尽力优化到硬件极限
+- 如果用户有多重目标组合 → 全部写入 `targets` 数组
+
+```json
+"end_goal": {
+  "description": "用户原文中的目标描述",
+  "targets": [
+    {
+      "type": "relative_improvement|absolute_time|eliminate_regression|max_improvement",
+      "target_pct": 20,
+      "target_value": null,
+      "unit": null,
+      "applies_to": "all|benchmark_name"
+    }
+  ],
+  "priority": "must_have|nice_to_have"
+}
+```
+
+#### 0.3 其他约束 (other)
+
+用户提到的技术偏好、平台约束、风险规避等：
+
+```json
+"other": {
+  "techniques": ["优先使用的技术，如 NEON SIMD"],
+  "constraints": ["硬约束，如 不修改公共 API", "保持 ABI 兼容"],
+  "risk_avoidance": ["需要规避的风险"],
+  "notes": "其他值得注意的信息"
+}
+```
+
+**完整 user_intent 写入示例**：
+
+```json
+{
+  "user_intent": {
+    "use_case_scope": {
+      "summary": "优化 binary ufunc 的浮点运算性能",
+      "benchmarks": ["bench_ufunc_strides.BinaryFP.time_binary\\(<ufunc 'fmax'>, 1, 1, 1, 'd'\\)"],
+      "operators": ["fmax", "fmin"],
+      "dtypes": ["float32", "float64"],
+      "parameters": "连续内存，stride=1"
+    },
+    "end_goal": {
+      "description": "整体性能提升 20%",
+      "targets": [{"type": "relative_improvement", "target_pct": 20, "applies_to": "all"}],
+      "priority": "must_have"
+    },
+    "other": {
+      "techniques": ["NPY_SIMD 跨平台抽象", "循环展开"],
+      "constraints": ["不修改公共 API", "保持 ABI 兼容"],
+      "risk_avoidance": ["避免仅适用于单平台的优化"],
+      "notes": ""
+    }
+  }
+}
+```
+
+**⚠️ 这一步的输出将作为 review 阶段的验收标准。如果用户目标模糊，尽量推断并记录，避免 review 时无法判断是否达成目标。**
+
 ### 1. 运行基线基准测试
 
 从用户目标中提取 benchmark 名称，用 `-b "精确名称"` 运行 ASV 基准测试（命令格式见 system.md 的 ASV 规范）。
+
+**并行加速**：如果有 3 个以上的独立 benchmark，使用 `ralph-parallel-agents` skill 派发多个子代理并行运行基准测试，将耗时缩短至 1/N。
 
 ### 2. 分析热点
 
@@ -20,6 +110,8 @@
 - 识别关键热点：循环结构、分支模式、内存访问模式
 - 检查当前 SIMD 利用情况
 - 分析缓存行为（是否 cache-friendly）
+
+**并行加速**：如果热点分析涉及多个独立源文件，使用 `ralph-parallel-agents` skill 并行分析，每个子代理专注一个文件。
 
 ### 3. 计算硬件性能天花板
 
@@ -47,11 +139,20 @@
 
 ### 4. 研究优化方向
 
+**⚡ 使用 `ralph-brainstorming` skill** 进行系统化的方案对比。
+
 搜索业界优化方案，考虑以下维度：
 - SIMD 向量化机会（NEON/SVE，优先使用 NPY_SIMD 跨平台抽象）
 - 循环变换（展开、融合、交换、分块）
 - 内存访问优化（预取、对齐、数据布局）
 - 算法级优化（分支消除、查表替代计算、近似算法）
+
+**必须完成以下步骤再进入 PRD 生成**：
+
+1. 生成 **2-3 个候选优化策略**，每个策略写明：机制、预期收益、风险、复杂度
+2. 与 `hardware_ceiling` 对比，过滤掉不可能的策略（预期收益超天花板）
+3. **推荐一个策略**，说明理由
+4. 将策略对比写入 `{{RUNTIME_DIR}}/design.md`（格式见 ralph-brainstorming skill）
 
 ### 5. 生成 prd.json
 
@@ -131,11 +232,14 @@
 
 完成所有步骤后，逐项验证：
 
+- [ ] `{{RUNTIME_DIR}}/analysis.json` — 有效 JSON，包含 `user_intent` 字段（用例范围、结束目标、其他约束）
+- [ ] `{{RUNTIME_DIR}}/analysis.json` — `user_intent.end_goal` 包含可测量的验收标准
+- [ ] `{{RUNTIME_DIR}}/analysis.json` — 有效 JSON，包含 hardware_ceiling 字段
 - [ ] `{{RUNTIME_DIR}}/prd.json` — 有效 JSON，包含 baselinePerf、targetPerf、userStories
 - [ ] `{{RUNTIME_DIR}}/prd.json` — baselinePerf.benchmarks 数组包含用户原始目标中的所有关注用例
 - [ ] `{{RUNTIME_DIR}}/prd.json` — 所有 expectedImprovement 在 5%-30% 之间（refactoring 类型为 0%）
 - [ ] `{{RUNTIME_DIR}}/prd.json` — targetPerf.time ≥ hardware_ceiling.ceiling_time_us × 0.9
+- [ ] `{{RUNTIME_DIR}}/prd.json` — targetPerf 与 user_intent.end_goal 方向一致（如用户要求 20% 提升，targetPerf 应 ≥ 20%）
 - [ ] `{{RUNTIME_DIR}}/prd.json` — 有依赖关系的任务已声明 dependsOn
-- [ ] `{{RUNTIME_DIR}}/analysis.json` — 有效 JSON，包含 hardware_ceiling 字段
 - [ ] `{{RUNTIME_DIR}}/progress.txt` — 硬件能力汇总章节已被填充（不是空占位符）
 - [ ] `{{RUNTIME_DIR}}/.task_name` — 内容为合法任务名

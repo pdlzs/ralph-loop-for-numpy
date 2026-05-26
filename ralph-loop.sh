@@ -25,6 +25,7 @@ RUNTIME_BASE="$SCRIPT_DIR/runtime"
 
 MAX_ITERATIONS="${RALPH_MAX_ITERATIONS:-20}"
 MAX_TASK_ATTEMPTS="${RALPH_MAX_TASK_ATTEMPTS:-3}"
+MAX_REVIEWS="${RALPH_MAX_REVIEWS:-3}"
 CONVERGENCE_AI_FAILURES="${RALPH_CONVERGENCE_AI_FAILURES:-3}"
 PROGRESS_MAX_KB="${RALPH_PROGRESS_MAX_KB:-1024}"
 
@@ -687,7 +688,7 @@ show_status() {
     log_info "阶段:        $(read_state phase 2>/dev/null || echo '?')"
     log_info "迭代:        $(read_state iteration 2>/dev/null || echo 0) / $MAX_ITERATIONS"
     log_info "连续AI失败:  $(read_state consecutive_ai_failures 2>/dev/null || echo 0)"
-    log_info "Review 次数: $(read_state review_count 2>/dev/null || echo 0)"
+    log_info "Review 次数: $(read_state review_count 2>/dev/null || echo 0) / $MAX_REVIEWS"
     echo ""
 
     if [ -f "$TASK_FILE" ] && validate_prd 2>/dev/null; then
@@ -836,6 +837,7 @@ show_help() {
   RALPH_TOOL                 默认 AI 工具 (claude/opencode)
   RALPH_MAX_ITERATIONS       最大迭代次数
   RALPH_MAX_TASK_ATTEMPTS    单个任务最大尝试次数 (默认: 3)
+  RALPH_MAX_REVIEWS          review 阶段最大次数 (默认: 3)
   RALPH_PROMPTS_DIR          提示词目录路径
 EOF
 }
@@ -986,6 +988,7 @@ main() {
     log_info "运行时目录:  $RUNTIME_DIR"
     log_info "AI 工具:     $AI_TOOL"
     log_info "最大迭代:    $MAX_ITERATIONS"
+    log_info "最大 Review:  $MAX_REVIEWS 次"
     log_info "提示词目录:  $PROMPTS_DIR"
     log_info "最大尝试:    每任务 $MAX_TASK_ATTEMPTS 次"
     echo ""
@@ -1025,6 +1028,27 @@ main() {
         if [ "$pending" -eq 0 ]; then
             # 所有任务已尝试 → 检查是否已达优化极限
             if check_safety_net; then
+                final_exit=0
+                break
+            fi
+
+            # 检查 review 次数上限
+            local review_count
+            review_count=$(read_state review_count 2>/dev/null || echo 0)
+            if [ "${review_count:-0}" -ge "$MAX_REVIEWS" ]; then
+                log_info "已达到 review 上限 ($MAX_REVIEWS 次)，自动结束"
+                if ! grep -q "<promise>COMPLETE</promise>" "$PROGRESS_FILE" 2>/dev/null; then
+                    cat >> "$PROGRESS_FILE" << EOF
+
+<promise>COMPLETE</promise>
+
+## 优化总结 (达到 review 上限)
+- Review 次数: $review_count (上限: $MAX_REVIEWS)
+- 结束时间: $(timestamp)
+- 结束原因: 达到 review 上限
+EOF
+                fi
+                write_state phase '"done"'
                 final_exit=0
                 break
             fi
