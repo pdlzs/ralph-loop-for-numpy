@@ -180,7 +180,20 @@ deploy_project() {
     mkdir -p "$dest_dir/.claude"
     curl -fsSL "$base_url/.claude/settings.json" -o "$dest_dir/.claude/settings.json"
 
+    # 下载 Superpowers 适配技能目录
+    mkdir -p "$dest_dir/.claude/skills/ralph-brainstorming"
+    mkdir -p "$dest_dir/.claude/skills/ralph-systematic-debugging"
+    mkdir -p "$dest_dir/.claude/skills/ralph-tdd-optimization"
+    mkdir -p "$dest_dir/.claude/skills/ralph-code-review"
+    mkdir -p "$dest_dir/.claude/skills/ralph-verification"
+    mkdir -p "$dest_dir/.claude/skills/ralph-parallel-agents"
+
+    for skill in ralph-brainstorming ralph-systematic-debugging ralph-tdd-optimization ralph-code-review ralph-verification ralph-parallel-agents; do
+        curl -fsSL "$base_url/.claude/skills/$skill/SKILL.md" -o "$dest_dir/.claude/skills/$skill/SKILL.md"
+    done
+
     log_info "项目文件已部署到 $dest_dir/"
+    log_info "已部署 6 个 Ralph Superpowers 适配技能到 .claude/skills/"
 }
 
 # ---------- 验证 ----------
@@ -194,6 +207,21 @@ verify() {
     has npm     && echo -e "  npm:      ${GREEN}$(npm --version 2>&1)${NC}"       || echo -e "  npm:      ${RED}未安装${NC}"
     has claude  && echo -e "  claude:   ${GREEN}已安装${NC}"                       || echo -e "  claude:   ${YELLOW}未安装${NC}"
     echo ""
+
+    # 验证技能文件（检查当前目录和指定部署目录）
+    local skills_dir="${1:-.}/.claude/skills"
+    if [ -d "$skills_dir" ]; then
+        log_info "技能文件:"
+        local skill_count=0
+        for skill_dir in "$skills_dir"/*/; do
+            if [ -f "$skill_dir/SKILL.md" ]; then
+                skill_count=$((skill_count + 1))
+                echo -e "  ${GREEN}$(basename "$skill_dir")${NC}"
+            fi
+        done
+        echo -e "  共 ${GREEN}${skill_count}${NC} 个技能"
+        echo ""
+    fi
 }
 
 # ---------- 帮助 ----------
@@ -254,7 +282,7 @@ main() {
         deploy_project "$deploy_dir"
     fi
 
-    verify
+    verify "$deploy_dir"
 
     if [ "$deps_only" = false ]; then
         deploy_dir="$(cd "$deploy_dir" 2>/dev/null && pwd || echo "$deploy_dir")"
@@ -265,6 +293,14 @@ main() {
         echo ""
         echo -e "${YELLOW}⚠ 请编辑 .claude/settings.json，将 ANTHROPIC_AUTH_TOKEN 替换为你的 API Key:${NC}"
         echo -e "  ${GREEN}sed -i 's/\"sk-xxx\"/\"sk-你的真实Key\"/' $deploy_dir/.claude/settings.json${NC}"
+        echo ""
+        echo -e "${CYAN}📦 已安装 6 个 Ralph Superpowers 技能:${NC}"
+        echo -e "  ${GREEN}ralph-brainstorming${NC}        — 优化策略方案对比"
+        echo -e "  ${GREEN}ralph-tdd-optimization${NC}     — Benchmark-Driven 性能开发"
+        echo -e "  ${GREEN}ralph-systematic-debugging${NC} — 编译/测试失败根因分析"
+        echo -e "  ${GREEN}ralph-code-review${NC}          — 五维度优化代码审查"
+        echo -e "  ${GREEN}ralph-verification${NC}         — 完成前强制验证清单"
+        echo -e "  ${GREEN}ralph-parallel-agents${NC}      — 并行基准测试与热点分析"
     else
         log_info "依赖安装完成"
     fi

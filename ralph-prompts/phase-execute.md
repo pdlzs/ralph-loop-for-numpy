@@ -23,11 +23,20 @@
 
 ### 2. 实现优化
 
+**⚡ 使用 `ralph-tdd-optimization` skill** 遵循 Benchmark-Driven Development 流程。
+
+在修改任何 C 源码之前：
+1. **先运行基线 benchmark**，确认当前性能数值（获取 `perf_before`）
+2. 确认 benchmark 能正常运行（如果跑不通，"test" 本身有问题，不要动代码）
+3. 实施**最小化优化** — 只做一个方向的改动，不捆绑无关修改
+
 对目标代码实施优化。遵循 NumPy 代码风格，保持变更最小化。
 
 ### 3. 验证
 
 **必须严格按顺序执行三步验证，不可跳过任何一步。**
+
+**⚡ 如果任何一步失败，立即使用 `ralph-systematic-debugging` skill 进行根因分析**，不要猜测式修复。
 
 ```bash
 # 步骤 1: 编译
@@ -71,6 +80,8 @@ cd benchmarks && asv run --python=same -b "<baselinePerf.benchmark>"
 - **不要**因为单独效果 <2% 就判定此任务方向无效
 
 ### 5. 记录结果
+
+**⚡ 使用 `ralph-code-review` skill 的 Self-Review Checklist 进行快速自审**，确认以下所有项后再记录结果。
 
 **更新 prd.json 中该任务**:
 - `status`: "passed" 或 "attempted"
